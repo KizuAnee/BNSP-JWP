@@ -26,12 +26,22 @@ function getDashboardStats($conn) {
 }
 
 /**
- * Menampilkan daftar seluruh buku
+ * Menampilkan daftar seluruh buku dengan fitur pencarian kata kunci
  * @param mysqli $conn
+ * @param string $keyword
  * @return array
  */
-function getAllBuku($conn) {
-    $result = $conn->query("SELECT * FROM buku ORDER BY id_buku DESC");
+function getAllBuku($conn, $keyword = "") {
+    if (!empty($keyword)) {
+        $param = "%" . $keyword . "%";
+        $stmt = $conn->prepare("SELECT * FROM buku WHERE judul LIKE ? OR penulis LIKE ? OR penerbit LIKE ? ORDER BY id_buku DESC");
+        $stmt->bind_param("sss", $param, $param, $param);
+        $stmt->execute();
+        $result = $stmt->get_result();
+    } else {
+        $result = $conn->query("SELECT * FROM buku ORDER BY id_buku DESC");
+    }
+    
     $data = [];
     while ($row = $result->fetch_assoc()) {
         $data[] = $row;
@@ -189,18 +199,25 @@ function prosesPengembalian($conn, $data) {
 }
 
 /**
- * Mengambil laporan rekapitulasi transaksi
+ * Mengambil laporan rekapitulasi transaksi dengan filter rentang tanggal
  * @param mysqli $conn
+ * @param string $tglMulai
+ * @param string $tglSelesai
  * @return array
  */
-function getLaporan($conn) {
+function getLaporan($conn, $tglMulai = "", $tglSelesai = "") {
     $sql = "SELECT p.id_pinjam, a.nama_anggota, b.judul, p.tgl_pinjam, p.tgl_jatuh_tempo, p.status, 
                    k.tgl_kembali, IFNULL(k.denda, 0) AS denda
             FROM peminjaman p
             JOIN anggota a ON p.id_anggota = a.id_anggota
             JOIN buku b ON p.id_buku = b.id_buku
-            LEFT JOIN pengembalian k ON p.id_pinjam = k.id_pinjam
-            ORDER BY p.id_pinjam DESC";
+            LEFT JOIN pengembalian k ON p.id_pinjam = k.id_pinjam";
+
+    if (!empty($tglMulai) && !empty($tglSelesai)) {
+        $sql .= " WHERE p.tgl_pinjam BETWEEN '$tglMulai' AND '$tglSelesai'";
+    }
+
+    $sql .= " ORDER BY p.id_pinjam DESC";
     $result = $conn->query($sql);
     $data = [];
     while ($row = $result->fetch_assoc()) {
